@@ -133,6 +133,7 @@ def main():
             text, decoded_subject_string = process_mail(mail_id, mail)
             urls = extract_urls_from_text(text)
             summary = summarize_text(text)
+            print(f"Summary: {summary}") 
             
             formatted_messages = []
             for url in urls:
