@@ -67,7 +67,7 @@ def extract_urls_from_text(text):
 
 def summarize_text(text):
     response_summary = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-3.5-turbo-16k",
         messages=[
             {"role": "system", "content": "You are an assistant who summarizes news articles into about 200 characters. You can generate interesting sentences."},
             {"role": "user", "content": f"Here's a news article: {text}. Can you summarize it for me?"},
