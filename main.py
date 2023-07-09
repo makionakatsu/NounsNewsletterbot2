@@ -6,7 +6,6 @@ import requests
 import openai
 import os
 import time
-import re
 
 def connect_mail_server(email, password):
     mail = imaplib.IMAP4_SSL("imap.gmail.com")
