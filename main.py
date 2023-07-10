@@ -140,11 +140,11 @@ def main():
                 # URLをフォーマットに合わせて整形
                 formatted_urls = "\n".join([f"🔗URL: {url}" for url in urls])
                 # メッセージをフォーマットに合わせて整形
-                message = f"**Subject: {decoded_subject}**\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 **{title}**\n・{summary}\n{formatted_urls}\n\n"
+                message = f"⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 **{title}**\n・{summary}\n{formatted_urls}\n\n"
                 formatted_messages.append(message)
 
             # 全てのメッセージを結合
-            formatted_output = "\n".join(formatted_messages)
+            formatted_output = "**Subject: {decoded_subject}**\n\n".join(formatted_messages)
             # Discordにメッセージを送信
             send_discord_message(webhook_url, formatted_output)
 if __name__ == "__main__":
