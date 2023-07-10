@@ -6,7 +6,6 @@ import requests
 import openai
 import os
 import time
-import re
 
 # メールサーバーに接続する関数
 def connect_mail_server(email, password):
@@ -42,7 +41,7 @@ def get_article_content(article):
         sibling = sibling.find_next_sibling()
     return title, text, urls
 
-# メールを処理し、本文と件名を取得する関数
+# メールを処理し、本文とURLを取得する関数
 def process_mail(mail_id, mail):
     _, msg_data = mail.fetch(mail_id, "(RFC822)")
     raw_email = msg_data[0][1]
@@ -54,17 +53,16 @@ def process_mail(mail_id, mail):
     else:
         decoded_subject = subject
 
-    articles = []
+    articles_contents = []
     if raw_mail.is_multipart():
         for part in raw_mail.walk():
             if part.get_content_type() == "text/html":
                 html_content = part.get_payload(decode=True).decode()
                 soup = BeautifulSoup(html_content, "html.parser")
-                h1 = soup.find("h1")
-                if h1 is not None:
-                    articles.append(h1)
-                articles.extend(soup.find_all("h3"))
-    return articles, decoded_subject
+                articles_contents = get_article_content(soup)
+
+    return articles_contents, decoded_subject
+
 
 # テキストを要約する関数
 def summarize_text(text):
