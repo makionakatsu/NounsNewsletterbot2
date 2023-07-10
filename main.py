@@ -56,13 +56,14 @@ def process_mail(mail_id, mail):
 
 # テキストを要約する関数
 def summarize_text(text):
+    print(f"Summarizing the following text: {text}")  
     response_summary = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-3.5-turbo-16k",
         messages=[
-            {"role": "system", "content": "You are an assistant who summarizes news articles into about 200 characters. You can generate interesting sentences."},
+            {"role": "system", "content": "You are an assistant who summarizes news articles in Japanese into about 200 characters. You can generate interesting sentences."},
             {"role": "user", "content": f"Here's a news article: {text}. Can you summarize it for me?"},
         ],
-        max_tokens=200
+        max_tokens=300
     )
     summary = response_summary['choices'][0]['message']['content']
     return summary
@@ -130,7 +131,7 @@ def main():
                 # URLをフォーマットに合わせて整形
                 formatted_urls = "\n".join([f"🔗URL: {url}" for url in urls])
                 # メッセージをフォーマットに合わせて整形
-                message = f"⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 {decoded_subject}\n・{summary}\n{formatted_urls}\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨"
+                message = f"**Subject: {decoded_subject}**\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 {decoded_subject}\n・{summary}\n{formatted_urls}"
                 formatted_messages.append(message)
 
             # 全てのメッセージを結合
