@@ -21,20 +21,22 @@ def get_unread_mail_ids(mail):
     mail_ids = data[0].split()
     return mail_ids
 
-# BeautifulSoupオブジェクトから本文とURLを抽出する関数
-def get_article_content(soup):
+# BeautifulSoupオブジェクトから記事の本文とURLを抽出する関数
+def get_article_content(article):
     text = ""
     urls = []
-    for element in soup.find_all(["h1", "h3", "p", "a"]):
+    for element in article.find_next_siblings(["p", "a"]):
         if element.name == "a":
             url = element.get("href")
             if url:
                 urls.append(url)
-        else:
+        elif element.name == "p":
             text += element.get_text(strip=True) + "\n"
+        if element.find_next_sibling("h3"):
+            break
     return text, urls
 
-# メールを処理し、本文と件名を取得する関数
+# メールを処理し、記事と件名を取得する関数
 def process_mail(mail_id, mail):
     _, msg_data = mail.fetch(mail_id, "(RFC822)")
     raw_email = msg_data[0][1]
@@ -139,5 +141,7 @@ def main():
             formatted_output = "\n".join(formatted_messages)
             # Discordにメッセージを送信
             send_discord_message(webhook_url, formatted_output)
+            
+            
 if __name__ == "__main__":
     main()
