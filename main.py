@@ -46,13 +46,14 @@ def process_mail(mail_id, mail):
     else:
         decoded_subject = subject
 
+    articles = []
     if raw_mail.is_multipart():
         for part in raw_mail.walk():
             if part.get_content_type() == "text/html":
                 html_content = part.get_payload(decode=True).decode()
                 soup = BeautifulSoup(html_content, "html.parser")
                 articles = soup.find_all("h3")
-                return articles, decoded_subject
+    return articles, decoded_subject
 
 # テキストを要約する関数
 def summarize_text(text):
@@ -120,7 +121,7 @@ def main():
         for mail_id in mail_ids:
             # メールを処理し、記事と件名を取得
             articles, decoded_subject = process_mail(mail_id, mail)
-            
+
             formatted_messages = []
             for article in articles:
                 # 記事から本文とURLを抽出
@@ -131,13 +132,12 @@ def main():
                 # URLをフォーマットに合わせて整形
                 formatted_urls = "\n".join([f"🔗URL: {url}" for url in urls])
                 # メッセージをフォーマットに合わせて整形
-                message = f"**Subject: {decoded_subject}**\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 {decoded_subject}\n・{summary}\n{formatted_urls}"
+                message = f"**Subject: {decoded_subject}**\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 **{decoded_subject}**\n・{summary}\n{formatted_urls}\n\n"
                 formatted_messages.append(message)
 
             # 全てのメッセージを結合
             formatted_output = "\n".join(formatted_messages)
             # Discordにメッセージを送信
             send_discord_message(webhook_url, formatted_output)
-
 if __name__ == "__main__":
     main()
