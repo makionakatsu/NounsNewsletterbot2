@@ -6,6 +6,7 @@ import requests
 import openai
 import os
 import time
+import re
 
 # メールサーバーに接続する関数
 def connect_mail_server(email, password):
@@ -14,62 +15,44 @@ def connect_mail_server(email, password):
     mail.select("inbox")
     return mail
 
-# 未読メールのIDを取得する関数
+# 未読のメールIDを取得する関数
 def get_unread_mail_ids(mail):
     _, data = mail.search(None, "UNSEEN")
     mail_ids = data[0].split()
     return mail_ids
 
-# HTMLからテキストを抽出する関数
-def get_text(soup):
+# BeautifulSoupオブジェクトから本文とURLを抽出する関数
+def get_article_content(soup):
     text = ""
+    urls = []
     for element in soup.find_all(["h1", "h3", "p", "a"]):
         if element.name == "a":
             url = element.get("href")
             if url:
-                text += f"URL: {url}\n"
+                urls.append(url)
         else:
-            text += element.get_text(strip=True)
-    return text
+            text += element.get_text(strip=True) + "\n"
+    return text, urls
 
-# メールを処理し、テキストと件名を取得する関数
+# メールを処理し、本文と件名を取得する関数
 def process_mail(mail_id, mail):
     _, msg_data = mail.fetch(mail_id, "(RFC822)")
     raw_email = msg_data[0][1]
-    msg = email.message_from_bytes(raw_email)
+    raw_mail = email.message_from_bytes(raw_email)
 
-    decoded_subject_string = decode_subject(msg["subject"])
+    subject = decode_header(raw_mail["Subject"])[0][0]
+    if isinstance(subject, bytes):
+        decoded_subject = subject.decode()
+    else:
+        decoded_subject = subject
 
-    text = ""
-    if msg.is_multipart():
-        for part in msg.walk():
-            if part.get_content_type() == "text/plain":
-                text += part.get_payload(decode=True).decode()
-            elif part.get_content_type() == "text/html":
+    if raw_mail.is_multipart():
+        for part in raw_mail.walk():
+            if part.get_content_type() == "text/html":
                 html_content = part.get_payload(decode=True).decode()
                 soup = BeautifulSoup(html_content, "html.parser")
-                text += get_text(soup)
-    else:
-        text = msg.get_payload(decode=True).decode()
-
-    return text, decoded_subject_string
-
-# 件名をデコードする関数
-def decode_subject(subject):
-    decoded_subject = decode_header(subject)
-    decoded_subject_string = ""
-    for item in decoded_subject:
-        if item[1]:
-            decoded_subject_string += item[0].decode(item[1])
-        else:
-            decoded_subject_string += item[0]
-    return decoded_subject_string
-
-# テキストからURLを抽出する関数
-def extract_urls_from_text(text):
-    soup = BeautifulSoup(text, "html.parser")
-    urls = [a['href'] for a in soup.find_all('a', href=True)]
-    return urls
+                articles = soup.find_all("h3")
+                return articles, decoded_subject
 
 # テキストを要約する関数
 def summarize_text(text):
@@ -111,43 +94,49 @@ def send_discord_message(webhook_url, content, max_retries=3, retry_delay=5):
                 break
             elif response.status_code == 429:
                 delay = int(response.headers['Retry-After'])
-                print(f"Rate limit hit. Waiting for {delay} seconds.")
                 time.sleep(delay)
                 retries += 1
             else:
-                print(f"Failed to send message (attempt {retries + 1}): {response.text}")
+                retries += 1
                 if retries < max_retries:
                     time.sleep(retry_delay)
-                    retries += 1
-                else:
-                    print(f"Giving up after {max_retries} attempts")
-                    return
 
-        time.sleep(1)
-
-# メインの処理
+# メイン関数
 def main():
     email = os.environ["EMAIL"]
     password = os.environ["PASSWORD"]
     webhook_url = os.environ["WEBHOOK_URL"]
     openai.api_key = os.environ["OPENAI_KEY"]
 
+    # メールサーバーに接続
     mail = connect_mail_server(email, password)
+    # 未読のメールIDを取得
     mail_ids = get_unread_mail_ids(mail)
 
     if len(mail_ids) == 0:
         print("No unread mails found. Skipping Discord message sending.")
     else:
         for mail_id in mail_ids:
-            text, decoded_subject_string = process_mail(mail_id, mail)
-            urls = extract_urls_from_text(text)
+            # メールを処理し、記事と件名を取得
+            articles, decoded_subject = process_mail(mail_id, mail)
             
-            # メールの内容をh3タグで分割し、各記事を処理
-            articles = text.split("<h3>")
+            formatted_messages = []
             for article in articles:
-                summary = summarize_text(article)
-                urls = extract_urls_from_text(article)
-                
-                formatted_messages = []
-                for url in urls:
-                    message = f"⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 {decoded_subject_string}\n・{summary}\n🔗URL: {url}\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨"
+                # 記事から本文とURLを抽出
+                text, urls = get_article_content(article)
+                # 本文を要約
+                summary = summarize_text(text)
+
+                # URLをフォーマットに合わせて整形
+                formatted_urls = "\n".join([f"🔗URL: {url}" for url in urls])
+                # メッセージをフォーマットに合わせて整形
+                message = f"⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 {decoded_subject}\n・{summary}\n{formatted_urls}\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨"
+                formatted_messages.append(message)
+
+            # 全てのメッセージを結合
+            formatted_output = "\n".join(formatted_messages)
+            # Discordにメッセージを送信
+            send_discord_message(webhook_url, formatted_output)
+
+if __name__ == "__main__":
+    main()
