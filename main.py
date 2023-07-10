@@ -21,22 +21,28 @@ def get_unread_mail_ids(mail):
     mail_ids = data[0].split()
     return mail_ids
 
-# BeautifulSoupオブジェクトから記事の本文とURLを抽出する関数
+# BeautifulSoupオブジェクトから本文とURLを抽出する関数
 def get_article_content(article):
+    title = article.get_text(strip=True)
     text = ""
     urls = []
-    for element in article.find_next_siblings(["p", "a"]):
-        if element.name == "a":
-            url = element.get("href")
+    sibling = article.find_next_sibling()
+    while sibling is not None:
+        if sibling.name == "p":
+            text += sibling.get_text(strip=True) + "\n"
+            a_tags = sibling.find_all('a')
+            for a_tag in a_tags:
+                url = a_tag.get("href")
+                if url:
+                    urls.append(url)
+        elif sibling.name == "a":
+            url = sibling.get("href")
             if url:
                 urls.append(url)
-        elif element.name == "p":
-            text += element.get_text(strip=True) + "\n"
-        if element.find_next_sibling("h3"):
-            break
-    return text, urls
+        sibling = sibling.find_next_sibling()
+    return title, text, urls
 
-# メールを処理し、記事と件名を取得する関数
+# メールを処理し、本文と件名を取得する関数
 def process_mail(mail_id, mail):
     _, msg_data = mail.fetch(mail_id, "(RFC822)")
     raw_email = msg_data[0][1]
@@ -63,8 +69,8 @@ def summarize_text(text):
     response_summary = openai.ChatCompletion.create(
         model="gpt-3.5-turbo-16k",
         messages=[
-            {"role": "system", "content": "You are an assistant who summarizes news articles in Japanese into about 200 characters. You can generate interesting sentences."},
-            {"role": "user", "content": f"Here's a news article: {text}. Can you summarize it for me?"},
+            {"role": "system", "content": "あなたは日本語で発信します。ニュース記事を200字程度に要約するアシスタントです。面白い文章が作れます。"},
+            {"role": "user", "content": f"ニュース記事です: {text}. わかりやすく要約してください"},
         ],
         max_tokens=300
     )
@@ -127,22 +133,19 @@ def main():
             formatted_messages = []
             for article in articles:
                 # 記事から本文とURLを抽出
-                text, urls = get_article_content(article)
+                title, text, urls = get_article_content(article)
                 # 本文を要約
                 summary = summarize_text(text)
-                # 記事の題名を取得
-                article_title = article.get_text(strip=True)
+
                 # URLをフォーマットに合わせて整形
                 formatted_urls = "\n".join([f"🔗URL: {url}" for url in urls])
                 # メッセージをフォーマットに合わせて整形
-                message = f"**Subject: {decoded_subject}**\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 **{article_title}**\n・{summary}\n{formatted_urls}\n\n"
+                message = f"**Subject: {decoded_subject}**\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 **{title}**\n・{summary}\n{formatted_urls}\n\n"
                 formatted_messages.append(message)
 
             # 全てのメッセージを結合
             formatted_output = "\n".join(formatted_messages)
             # Discordにメッセージを送信
             send_discord_message(webhook_url, formatted_output)
-            
-            
 if __name__ == "__main__":
     main()
