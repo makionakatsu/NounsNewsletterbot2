@@ -24,7 +24,7 @@ def get_unread_mail_ids(mail):
 # BeautifulSoupオブジェクトから本文とURLを抽出する関数
 def get_contents(soup):
     contents = []
-    for tag in soup.find_all(["h1", "h2", "h3", "p", "a", "li"]):
+    for tag in soup.find_all(["h1", "h2", "h3", "p", "a", "li", "ol"]):
         if tag.name == "a":
             content = (tag.name, tag.get("href"))
         else:
@@ -55,6 +55,33 @@ def process_mail(mail_id, mail):
 
     return received_date, decoded_subject, contents
 
+# メッセージをフォーマットに合わせて整形する関数
+def format_messages(decoded_subject, contents):
+    formatted_messages = []
+    message = f"**{decoded_subject}**\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨"
+    for content_type, content in contents:
+        if content_type == "h1" or content_type == "h2":
+            message += f"\n\n{content}"
+        elif content_type == "h3":
+            message += f"\n\n📘 **{content}**"
+        elif content_type == "p":
+            summary = summarize_text(content)
+            message += f"\n・{summary}"
+        elif content_type == "a":
+            url_line = f"\n🔗{content}"
+            if len(message) + len(url_line) > 2000:
+                # URLを追加すると2000文字を超えるため、新しいメッセージを開始
+                formatted_messages.append(message)
+                message = "⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨" + url_line
+            else:
+                message += url_line
+        elif content_type == "li":
+            message += f"\n- {content}"
+        elif content_type == "ol":
+            message += f"\n1. {content}"
+
+    formatted_messages.append(message)
+    return formatted_messages
 
 # テキストを要約する関数
 def summarize_text(text):
