@@ -6,6 +6,7 @@ import requests
 import openai
 import os
 import time
+import re
 
 # メールサーバーに接続する関数
 def connect_mail_server(email, password):
@@ -21,25 +22,15 @@ def get_unread_mail_ids(mail):
     return mail_ids
 
 # BeautifulSoupオブジェクトから本文とURLを抽出する関数
-def get_article_content(article):
-    title = article.get_text(strip=True)
-    text = ""
-    urls = []
-    sibling = article.find_next_sibling()
-    while sibling is not None and sibling.name != "h3":
-        if sibling.name in ["p", "ol", "li"]:
-            text += sibling.get_text(strip=True) + "\n"
-            a_tags = sibling.find_all('a')
-            for a_tag in a_tags:
-                url = a_tag.get("href")
-                if url:
-                    urls.append(url)
-        elif sibling.name == "a":
-            url = sibling.get("href")
-            if url:
-                urls.append(url)
-        sibling = sibling.find_next_sibling()
-    return title, text, urls
+def get_contents(soup):
+    contents = []
+    for tag in soup.find_all(["h1", "h2", "h3", "p", "a", "li"]):
+        if tag.name == "a":
+            content = (tag.name, tag.get("href"))
+        else:
+            content = (tag.name, tag.get_text(strip=True))
+        contents.append(content)
+    return contents
 
 # メールを処理し、本文とURLを取得する関数
 def process_mail(mail_id, mail):
@@ -53,15 +44,16 @@ def process_mail(mail_id, mail):
     else:
         decoded_subject = subject
 
-    articles_contents = []
+    received_date = raw_mail["Date"]
+
     if raw_mail.is_multipart():
         for part in raw_mail.walk():
             if part.get_content_type() == "text/html":
                 html_content = part.get_payload(decode=True).decode()
                 soup = BeautifulSoup(html_content, "html.parser")
-                articles_contents = get_article_content(soup)
+                contents = get_contents(soup)
 
-    return articles_contents, decoded_subject
+    return received_date, decoded_subject, contents
 
 
 # テキストを要約する関数
@@ -70,8 +62,8 @@ def summarize_text(text):
     response_summary = openai.ChatCompletion.create(
         model="gpt-3.5-turbo-16k",
         messages=[
-            {"role": "system", "content": "あなたは日本語で発信します。ニュース記事を200字程度に要約するアシスタントです。面白い文章が作れます。"},
-            {"role": "user", "content": f"ニュース記事です: {text}. わかりやすく要約してください"},
+            {"role": "system", "content": "You are an assistant who summarizes news articles in Japanese into about 200 characters. You can generate interesting sentences."},
+            {"role": "user", "content": f"Here's a news article: {text}. Can you summarize it for me?"},
         ],
         max_tokens=300
     )
@@ -129,19 +121,29 @@ def main():
     else:
         for mail_id in mail_ids:
             # メールを処理し、記事と件名を取得
-            articles, decoded_subject = process_mail(mail_id, mail)
+            received_date, decoded_subject, h1, h2, li, contents = process_mail(mail_id, mail)
 
             formatted_messages = []
-            for article in articles:
-                # 記事から本文とURLを抽出
-                title, text, urls = get_article_content(article)
+
+            # メール受信日と件名をメッセージに追加
+            formatted_messages.append(f"**{received_date}**\n**{decoded_subject}**\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨")
+
+            # h1, h2, liが存在する場合はメッセージに追加
+            if h1:
+                formatted_messages.append(h1)
+            if h2:
+                formatted_messages.append(h2)
+            if li:
+                formatted_messages.extend(li)
+
+            for subtitle, text, urls in contents:
                 # 本文を要約
                 summary = summarize_text(text)
 
                 # URLをフォーマットに合わせて整形
                 formatted_urls = "\n".join([f"🔗URL: {url}" for url in urls])
                 # メッセージをフォーマットに合わせて整形
-                message = f"⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 **{title}**\n・{summary}\n{formatted_urls}"
+                message = f"\n\n⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨ ⌐◨-◨\n\n📘 **{subtitle}**\n・{summary}\n{formatted_urls}\n\n"
                 formatted_messages.append(message)
 
             # 全てのメッセージを結合
