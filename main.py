@@ -6,7 +6,6 @@ import requests
 import openai
 import os
 import time
-import re
 
 # メールサーバーに接続する関数
 def connect_mail_server(email, password):
